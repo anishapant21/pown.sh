@@ -1,69 +1,97 @@
-name: Terraform Workflow with Tests
+name: "OS Matrix Test"
 
 on:
-  push:
-    branches: [main]
+  # Trigger on pull request to main
   pull_request:
-    branches: [main]
+    branches:
+      - main
+
+  # Trigger manually
+  workflow_dispatch:
+    inputs:
+      os_version:
+        description: "Operating System Version"
+        required: false
+        default: ""
 
 jobs:
-  terraform:
-    name: Terraform Setup, Validate, Plan, and Apply
+  test:
     runs-on: ubuntu-latest
-    environment: dev
-
-    env:
-      TF_VAR_access_key: ${{ secrets.AWS_ACCESS_KEY }}
-      TF_VAR_secret_key: ${{ secrets.AWS_SECRET_KEY }}
-      TF_VAR_private_key: ${{ secrets.AWS_PRIVATE_KEY }}
+    environment: dev # Specify the dev environment
+    strategy:
+      matrix:
+        os: ["debian", "amazon-linux"]
+      fail-fast: false
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup AWS CLI
+        uses: aws-actions/configure-aws-credentials@v3
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: us-east-1
+
+      - name: Fetch AMI ID for ${{ matrix.os }}
+        id: fetch_ami
+        run: |
+          case "${{ matrix.os }}" in
+            debian)
+              os_filter="debian-12-amd64-*"
+              owners="136693071363" # Debian owner ID
+              ;;
+            amazon-linux)
+              os_filter="amzn2-ami-hvm-*-x86_64-gp2"
+              owners="137112412989" # Amazon Linux owner ID
+              ;;
+          esac
+          ami_id=$(aws ec2 describe-images --filters "Name=name,Values=$os_filter" "Name=state,Values=available" \
+                  --owners $owners \
+                  --query "Images | sort_by(@, &CreationDate)[-1].ImageId" --output text)
+          echo "AMI_ID=$ami_id"
+          echo "ami_id=$ami_id" >> $GITHUB_ENV  # Store in the runtime environment
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@v2
         with:
-          terraform_version: "1.3.0"
+          terraform_version: 1.5.0
 
       - name: Initialize Terraform
-        working-directory: ./tests
         run: terraform init
 
-      - name: Validate Terraform
-        working-directory: ./tests
-        run: terraform validate
-
-      - name: Plan Terraform
-        working-directory: ./tests
-        run: terraform plan
-
       - name: Apply Terraform
-        if: github.ref == 'refs/heads/main'
-        working-directory: ./tests
-        run: terraform apply -auto-approve
-
-  tests:
-    name: Run Tests
-    runs-on: ubuntu-latest
-    needs: terraform
-    environment: dev
-
-    env:
-      TF_VAR_access_key: ${{ secrets.AWS_ACCESS_KEY }}
-      TF_VAR_secret_key: ${{ secrets.AWS_SECRET_KEY }}
-      TF_VAR_private_key: ${{ secrets.AWS_PRIVATE_KEY }}
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Setup Terraform (for Tests)
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.3.0"
-
-      - name: Run Tests
         run: |
-          chmod +x ./tests/test.sh
-          ./tests/test.sh
+          terraform apply -auto-approve \
+            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+            -var="ami_id=${{ env.ami_id }}"  # Use directly from the runtime
+
+      - name: Fetch Instance IP
+        id: instance_info
+        run: |
+          INSTANCE_IP=$(terraform output -raw instance_ip)
+          echo "INSTANCE_IP=$INSTANCE_IP"
+          echo "instance_ip=$INSTANCE_IP" >> $GITHUB_ENV  # Save the instance IP in the runtime environment
+
+      - name: Add SSH Key
+        run: |
+          echo "${{ secrets.AWS_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+
+      - name: Install pown.sh via SSH
+        run: |
+          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa ec2-user@${{ env.instance_ip }} << 'EOF'
+          curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/main/pown.sh
+          chmod +x pown.sh
+          ./pown.sh
+          EOF
+
+      - name: Destroy Terraform
+        if: always()
+        run: |
+          terraform destroy -auto-approve \
+            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+            -var="ami_id=${{ env.ami_id }}"
