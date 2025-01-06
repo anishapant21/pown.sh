@@ -75,13 +75,20 @@ jobs:
       - name: Fetch Instance IP
         id: ip
         run: |
+          # Get the raw output
           raw_output=$(terraform output -raw instance_ip 2>/dev/null)
-          instance_ip=$(echo "$raw_output" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | tr -d '\n' | tr -d '\r')
+
+          # Extract only the first valid IPv4 address
+          instance_ip=$(echo "$raw_output" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -n 1)
+
+          # Validate the extracted IP
           if [[ -z "$instance_ip" ]]; then
             echo "Failed to extract a valid IP address from Terraform output"
             echo "Raw output: $raw_output"
             exit 1
           fi
+
+          # Store the valid IP in the environment
           echo "INSTANCE_IP=$instance_ip" >> "$GITHUB_ENV"
           echo "Instance IP successfully captured: $instance_ip"
 
