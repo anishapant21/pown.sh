@@ -18,6 +18,11 @@ jobs:
       matrix:
         os: ["debian", "amazon-linux"]
       fail-fast: false
+    env:
+      LDAP_BASE: ${{ vars.LDAP_BASE }}
+      LDAP_URI: ${{ vars.LDAP_URI }}
+      LDAP_ADMIN_DN: ${{ vars.LDAP_ADMIN_DN }}
+      LDAP_ADMIN_PW: ${{ vars.LDAP_ADMIN_PW }}
 
     steps:
       - name: Checkout Repository
@@ -112,14 +117,23 @@ jobs:
 
       - name: Install pown.sh via SSH
         run: |
-          SSH_USER="${{ matrix.os == 'debian' && 'admin' || 'ec2-user' }}"
+          SSH_USER="ec2-user"
           max_retries=3
           retry_count=0
 
-          echo ${SSH_USER}
-
           while [ $retry_count -lt $max_retries ]; do
-            if ssh -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} "curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/main/pown.sh && chmod +x pown.sh && ./pown.sh"; then
+            if ssh -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << 'EOF'
+              export LDAP_BASE="${{ env.LDAP_BASE }}"
+              export LDAP_URI="${{ env.LDAP_URI }}"
+              export LDAP_ADMIN_DN="${{ env.LDAP_ADMIN_DN }}"
+              export LDAP_ADMIN_PW="${{ env.LDAP_ADMIN_PW }}"
+              export CA_CERT_CONTENT="${{ secrets.CA_CERT_CONTENT }}"
+              
+              curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/main/pown.sh
+              chmod +x pown.sh
+              ./pown.sh
+            EOF
+            then
               break
             else
               retry_count=$((retry_count+1))
