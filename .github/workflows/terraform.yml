@@ -102,7 +102,7 @@ jobs:
         run: |
           echo "Waiting for instance to be ready..."
           echo "Instance IP: ${{ env.INSTANCE_IP }}"
-          sleep 5
+          sleep 60
 
       - name: Setup SSH
         run: |
