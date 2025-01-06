@@ -105,11 +105,6 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ env.INSTANCE_IP }} >> ~/.ssh/known_hosts
 
-      - name: Debug SSH Key
-        run: |
-          cat ~/.ssh/id_rsa
-          ssh-keygen -lf ~/.ssh/id_rsa
-
       - name: Install pown.sh via SSH
         run: |
           SSH_USER="${{ matrix.os == 'debian' && 'admin' || 'ec2-user' }}"
