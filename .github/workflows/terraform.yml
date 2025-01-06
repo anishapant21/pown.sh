@@ -131,7 +131,7 @@ jobs:
           <your-certificate-content>
           -----END CERTIFICATE-----"
 
-          curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/main/pown.sh
+          curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/refactor/github-action-matrix/pown.sh
           chmod +x pown.sh
           ./pown.sh
           EOF
