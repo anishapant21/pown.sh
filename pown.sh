@@ -197,7 +197,7 @@ install_packages_yum() {
         vim \
         net-tools \
         iputils \
-        authselect
+        # authselect
 }
 
 install_packages_pacman() {
