@@ -132,6 +132,7 @@ EOL
 
 setup_tls() {
     echo "Setting up TLS..."
+    echo "test"
     # if [ -z "$CA_CERT_CONTENT" ]; then
     #     echo "Error: CA_CERT_CONTENT environment variable is not set"
     #     exit 1
