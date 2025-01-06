@@ -117,19 +117,17 @@ jobs:
 
       - name: Install pown.sh via SSH
         run: |
-          SSH_USER="ec2-user"
+          SSH_USER="${{ matrix.os == 'debian' && 'admin' || 'ec2-user' }}"
           max_retries=3
           retry_count=0
 
           while [ $retry_count -lt $max_retries ]; do
             if ssh -t -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << 'EOF'
-          export LDAP_BASE="dc=mieweb,dc=com"
-          export LDAP_URI="ldap://4.tcp.ngrok.io:13282"
-          export LDAP_ADMIN_DN="cn=admin,dc=mieweb,dc=com"
-          export LDAP_ADMIN_PW="secret"
-          export CA_CERT_CONTENT="-----BEGIN CERTIFICATE-----
-          <your-certificate-content>
-          -----END CERTIFICATE-----"
+          export LDAP_BASE="${{ env.LDAP_BASE }}"
+          export LDAP_URI="${{ env.LDAP_URI }}"
+          export LDAP_ADMIN_DN="${{ env.LDAP_ADMIN_DN }}"
+          export LDAP_ADMIN_PW="${{ env.LDAP_ADMIN_PW }}"
+          export CA_CERT_CONTENT= ${{ secrets.CA_CERT_CONTENT }} 
 
           curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/refactor/github-action-matrix/pown.sh
           chmod +x pown.sh
@@ -148,10 +146,10 @@ jobs:
                 fi
               done
 
-      # - name: Destroy Terraform
-      #   if: always()
-      #   run: |
-      #     terraform destroy -auto-approve \
-      #       -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
-      #       -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
-      #       -var="ami_id=${{ env.ami_id }}"
+      - name: Destroy Terraform
+        if: always()
+        run: |
+          terraform destroy -auto-approve \
+            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+            -var="ami_id=${{ env.ami_id }}"
