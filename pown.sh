@@ -119,11 +119,11 @@ ldap_group_name = cn
 EOL
     sudo chmod 600 /etc/sssd/sssd.conf
 
-    if [ "$PACKAGE_MANAGER" = "yum" ]; then
-        # Add Red Hat specific authentication configuration
-        sudo authselect select sssd --force
-        sudo authselect enable-feature with-mkhomedir
-    fi
+    # if [ "$PACKAGE_MANAGER" = "yum" ]; then
+    #     # Add Red Hat specific authentication configuration
+    #     sudo authselect select sssd --force
+    #     sudo authselect enable-feature with-mkhomedir
+    # fi
 
     sudo systemctl enable sssd
     sudo systemctl restart sssd
