@@ -105,11 +105,18 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ env.INSTANCE_IP }} >> ~/.ssh/known_hosts
 
+      - name: Inspect SSH Key
+        run: |
+          echo "First few lines of ~/.ssh/id_rsa:"
+          head -n 5 ~/.ssh/id_rsa
+
       - name: Install pown.sh via SSH
         run: |
           SSH_USER="${{ matrix.os == 'debian' && 'admin' || 'ec2-user' }}"
           max_retries=3
           retry_count=0
+
+          echo ${SSH_USER}
 
           while [ $retry_count -lt $max_retries ]; do
             if ssh -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} "curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/main/pown.sh && chmod +x pown.sh && ./pown.sh"; then
@@ -125,10 +132,10 @@ jobs:
             fi
           done
 
-      - name: Destroy Terraform
-        if: always()
-        run: |
-          terraform destroy -auto-approve \
-            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
-            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
-            -var="ami_id=${{ env.ami_id }}"
+      # - name: Destroy Terraform
+      #   if: always()
+      #   run: |
+      #     terraform destroy -auto-approve \
+      #       -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+      #       -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+      #       -var="ami_id=${{ env.ami_id }}"
