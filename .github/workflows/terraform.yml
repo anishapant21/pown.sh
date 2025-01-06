@@ -123,28 +123,30 @@ jobs:
 
           while [ $retry_count -lt $max_retries ]; do
             if ssh -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << 'EOF'
-              export LDAP_BASE="${{ env.LDAP_BASE }}"
-              export LDAP_URI="${{ env.LDAP_URI }}"
-              export LDAP_ADMIN_DN="${{ env.LDAP_ADMIN_DN }}"
-              export LDAP_ADMIN_PW="${{ env.LDAP_ADMIN_PW }}"
-              export CA_CERT_CONTENT="${{ secrets.CA_CERT_CONTENT }}"
-              
-              curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/main/pown.sh
-              chmod +x pown.sh
-              ./pown.sh
-            EOF
-            then
-              break
-            else
-              retry_count=$((retry_count+1))
-              if [ $retry_count -eq $max_retries ]; then
-                echo "Failed to connect after $max_retries attempts"
-                exit 1
-              fi
-              echo "Connection failed, retrying in 10 seconds..."
-              sleep 10
-            fi
-          done
+          export LDAP_BASE="dc=mieweb,dc=com"
+          export LDAP_URI="ldap://4.tcp.ngrok.io:13282"
+          export LDAP_ADMIN_DN="cn=admin,dc=mieweb,dc=com"
+          export LDAP_ADMIN_PW="secret"
+          export CA_CERT_CONTENT="-----BEGIN CERTIFICATE-----
+          <your-certificate-content>
+          -----END CERTIFICATE-----"
+
+          curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/main/pown.sh
+          chmod +x pown.sh
+          ./pown.sh
+          EOF
+                then
+                  break
+                else
+                  retry_count=$((retry_count+1))
+                  if [ $retry_count -eq $max_retries ]; then
+                    echo "Failed to connect after $max_retries attempts"
+                    exit 1
+                  fi
+                  echo "Connection failed, retrying in 10 seconds..."
+                  sleep 10
+                fi
+              done
 
       # - name: Destroy Terraform
       #   if: always()
