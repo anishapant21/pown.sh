@@ -25,29 +25,29 @@ echo "Detected package manager: $PACKAGE_MANAGER"
 # Common configurations
 setup_ssh() {
     echo "Setting up SSH..."
-    sudo mkdir -p /var/run/sshd
+    mkdir -p /var/run/sshd
 
-    # Check if PasswordAuthentication is set to 'no' and replace it with 'yes'
-    if sudo grep -q "^PasswordAuthentication no" /etc/ssh/sshd_config; then
+       # Check if PasswordAuthentication is set to 'no' and replace it with 'yes'
+    if grep -q "^PasswordAuthentication no" /etc/ssh/sshd_config; then
         echo "Updating PasswordAuthentication to 'yes' in sshd_config..."
-        sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
     else
         echo "Adding PasswordAuthentication yes to sshd_config..."
-        echo "PasswordAuthentication yes" | sudo tee -a /etc/ssh/sshd_config
+        echo "PasswordAuthentication yes" >> /etc/ssh/sshd_config
     fi
 
-    sudo tee -a /etc/ssh/sshd_config <<EOL
+    cat >> /etc/ssh/sshd_config <<EOL
 Port 22
 PermitRootLogin yes
 UsePAM yes
 EOL
     echo "SSH config written."
     if [ "$PACKAGE_MANAGER" = "yum" ]; then
-        sudo systemctl enable sshd
-        sudo systemctl restart sshd
+        systemctl enable sshd
+        systemctl restart sshd
     elif [ "$PACKAGE_MANAGER" = "apt" ]; then
-        sudo systemctl enable ssh
-        sudo systemctl restart ssh
+        systemctl enable ssh
+        systemctl restart ssh
     fi
     generate_ssh_keys
 }
@@ -56,22 +56,22 @@ generate_ssh_keys() {
     echo "Generating SSH keys if not already present..."
     if [ ! -f /etc/ssh/ssh_host_rsa_key ]; then
         echo "Generating RSA SSH key..."
-        sudo ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N ""
+        ssh-keygen -t rsa -f /etc/ssh/ssh_host_rsa_key -N ""
     fi
     if [ ! -f /etc/ssh/ssh_host_ecdsa_key ]; then
         echo "Generating ECDSA SSH key..."
-        sudo ssh-keygen -t ecdsa -f /etc/ssh/ssh_host_ecdsa_key -N ""
+        ssh-keygen -t ecdsa -f /etc/ssh/ssh_host_ecdsa_key -N ""
     fi
     if [ ! -f /etc/ssh/ssh_host_ed25519_key ]; then
         echo "Generating ED25519 SSH key..."
-        sudo ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
+        ssh-keygen -t ed25519 -f /etc/ssh/ssh_host_ed25519_key -N ""
     fi
 }
 
 setup_ldap_client() {
     echo "Setting up LDAP client..."
-    sudo mkdir -p /etc/ldap
-    sudo tee /etc/ldap/ldap.conf <<EOL
+    mkdir -p /etc/ldap
+    cat > /etc/ldap/ldap.conf <<EOL
 BASE    $LDAP_BASE
 URI     $LDAP_URI
 BINDDN  $LDAP_ADMIN_DN
@@ -82,7 +82,7 @@ EOL
 
 setup_sssd() {
     echo "Setting up SSSD..."
-    sudo tee /etc/sssd/sssd.conf <<EOL
+    cat > /etc/sssd/sssd.conf <<EOL
 [sssd]
 config_file_version = 2
 services = nss, pam, ssh
@@ -117,57 +117,68 @@ ldap_user_ssh_public_key = sshPublicKey
 ldap_auth_disable_tls_never_use_in_production = true
 ldap_group_name = cn
 EOL
-    sudo chmod 600 /etc/sssd/sssd.conf
+    chmod 600 /etc/sssd/sssd.conf
 
-    if [ "$PACKAGE_MANAGER" = "yum" ]; then
-        # Add Red Hat specific authentication configuration
-        sudo authselect select sssd --force
-        sudo authselect enable-feature with-mkhomedir
-    fi
+ # Configure SSSD based on the package manager
+if [ "$PACKAGE_MANAGER" = "yum" ]; then
+    # Add Red Hat specific authentication configuration
+    authselect select sssd --force
+    authselect enable-feature with-mkhomedir
+fi
 
-    sudo systemctl enable sssd
-    sudo systemctl restart sssd
+# Ensure SSSD service is enabled and restarted
+systemctl enable sssd
+systemctl restart sssd
+  
     echo "SSSD config written and permissions set."
 }
 
 setup_tls() {
     echo "Setting up TLS..."
-    if [ -z "$CA_CERT_CONTENT" ]; then
+
+     if [ -z "$CA_CERT_CONTENT" ]; then
         echo "Error: CA_CERT_CONTENT environment variable is not set"
         exit 1
     fi
 
-    echo "$CA_CERT_CONTENT" | sudo tee /etc/ssl/certs/ca-cert.pem > /dev/null
-    sudo chmod 644 /etc/ssl/certs/ca-cert.pem
+    # Write the certificate directly
+    echo "$CA_CERT_CONTENT" > /etc/ssl/certs/ca-cert.pem
+
+    chmod 644 /etc/ssl/certs/ca-cert.pem
     echo "TLS certificate written."
 
+    # Update CA certificates based on the package manager
     echo "Updating CA certificates..."
     if [ "$PACKAGE_MANAGER" = "apt" ]; then
-        sudo update-ca-certificates
+        update-ca-certificates
     elif [ "$PACKAGE_MANAGER" = "yum" ]; then
-        sudo update-ca-trust extract
+        update-ca-trust extract
     elif [ "$PACKAGE_MANAGER" = "pacman" ]; then
-        sudo update-ca-trust
+        update-ca-trust
     fi
     echo "CA certificates updated."
 }
 
 configure_pam_mkhomedir() {
     echo "Configuring PAM for SSHD to enable pam_mkhomedir..."
+    
     PAM_FILE="/etc/pam.d/sshd"
 
-    if ! sudo grep -q "pam_mkhomedir.so" "$PAM_FILE"; then
+    # Check if the pam_mkhomedir.so line already exists
+    if ! grep -q "pam_mkhomedir.so" "$PAM_FILE"; then
+        # Add the pam_mkhomedir.so configuration to the PAM file
         echo "Adding pam_mkhomedir.so configuration to $PAM_FILE..."
-        echo "session required pam_mkhomedir.so skel=/etc/skel umask=0077" | sudo tee -a "$PAM_FILE"
+        echo "session required pam_mkhomedir.so skel=/etc/skel umask=0077" >> "$PAM_FILE"
     else
         echo "pam_mkhomedir.so is already configured in $PAM_FILE. Skipping."
     fi
 }
 
+
 install_packages_apt() {
     echo "Installing packages with apt..."
-    export DEBIAN_FRONTEND=noninteractive
-    sudo apt-get update && sudo apt-get install -y \
+    export DEBIAN_FRONTEND=noninteractive  # Set non-interactive mode
+    apt-get update && apt-get install -y \
         ldap-utils \
         openssh-client \
         openssh-server \
@@ -180,13 +191,14 @@ install_packages_apt() {
         vim \
         net-tools \
         iputils-ping && \
-        sudo rm -rf /var/lib/apt/lists/*
-    unset DEBIAN_FRONTEND
+        rm -rf /var/lib/apt/lists/*
+    echo "Packages installed."
+    unset DEBIAN_FRONTEND  # Reset to avoid side effects
 }
 
 install_packages_yum() {
     echo "Installing packages with yum..."
-    sudo yum install -y \
+    yum install -y \
         openssh-clients \
         openssh-server \
         sssd \
@@ -198,11 +210,12 @@ install_packages_yum() {
         net-tools \
         iputils \
         authselect
+    echo "Packages installed."
 }
 
 install_packages_pacman() {
     echo "Installing packages with pacman..."
-    sudo pacman -Sy --noconfirm \
+    pacman -Sy --noconfirm \
         openssh \
         sssd \
         openldap \
@@ -212,9 +225,12 @@ install_packages_pacman() {
         vim \
         net-tools \
         iputils
+    echo "Packages installed."
 }
 
+# Install the necessary packages
 echo "Installing necessary packages..."
+echo $PACKAGE_MANAGER
 if [ "$PACKAGE_MANAGER" = "apt" ]; then
     install_packages_apt
 elif [ "$PACKAGE_MANAGER" = "yum" ]; then
@@ -222,10 +238,12 @@ elif [ "$PACKAGE_MANAGER" = "yum" ]; then
 elif [ "$PACKAGE_MANAGER" = "pacman" ]; then
     install_packages_pacman
 else
-    echo "Unsupported package manager. Exiting."
+    echo $PACKAGE_MANAGER
+    echo "No valid package manager found. Exiting."
     exit 1
 fi
 
+# Run the setup functions
 setup_ssh
 setup_ldap_client
 setup_sssd

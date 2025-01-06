@@ -122,7 +122,7 @@ jobs:
           retry_count=0
 
           while [ $retry_count -lt $max_retries ]; do
-            if ssh -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << 'EOF'
+            if ssh -t -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << 'EOF'
           export LDAP_BASE="dc=mieweb,dc=com"
           export LDAP_URI="ldap://4.tcp.ngrok.io:13282"
           export LDAP_ADMIN_DN="cn=admin,dc=mieweb,dc=com"
