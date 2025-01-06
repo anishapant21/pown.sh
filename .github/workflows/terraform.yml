@@ -23,7 +23,7 @@ jobs:
       LDAP_URI: ${{ vars.LDAP_URI }}
       LDAP_ADMIN_DN: ${{ vars.LDAP_ADMIN_DN }}
       LDAP_ADMIN_PW: ${{ vars.LDAP_ADMIN_PW }}
-      cA_CERT_CONTENT: ${{vars.CA_CERT_CONTENT}}
+      CA_CERT_CONTENT: ${{vars.CA_CERT_CONTENT}}
 
     steps:
       - name: Checkout Repository
