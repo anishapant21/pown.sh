@@ -147,6 +147,28 @@ jobs:
                 fi
               done
 
+      - name: Test SSH with `ann`
+        run: |
+          SSH_USER="ann"
+          PASSWORD="ann"
+          max_retries=3
+          retry_count=0
+
+          while [ $retry_count -lt $max_retries ]; do
+            if sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no $SSH_USER@${{ env.INSTANCE_IP }} "echo 'SSH as $SSH_USER successful'"; then
+              echo "SSH connection as $SSH_USER succeeded"
+              break
+            else
+              retry_count=$((retry_count+1))
+              if [ $retry_count -eq $max_retries ]; then
+                echo "Failed to SSH as $SSH_USER after $max_retries attempts"
+                exit 1
+              fi
+              echo "Connection failed, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+
       - name: Destroy Terraform
         if: always()
         run: |
