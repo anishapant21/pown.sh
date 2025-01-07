@@ -131,19 +131,8 @@ ldap_group_name = cn
 EOL
     sudo chmod 600 /etc/sssd/sssd.conf
 
-
        if [ "$PACKAGE_MANAGER" = "yum" ]; then
-        # Handle Amazon Linux 2 separately
-        if [[ "$OS_VERSION" == "amzn-2" ]]; then
-            echo "Configuring with authconfig for Amazon Linux 2..."
-            sudo authconfig \
-                --enableldap \
-                --enableldapauth \
-                --ldapserver=$LDAP_URI \
-                --ldapbasedn="$LDAP_BASE" \
-                --enablemkhomedir \
-                --updateall
-        elif [[ "$OS_VERSION" == "amzn-2023" ]]; then
+        if [[ "$OS_VERSION" == "amzn-2023" ]]; then
             echo "Amazon Linux 2023 detected"
             sudo authselect select sssd --force
             sudo authselect enable-feature with-mkhomedir
