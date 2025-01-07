@@ -23,7 +23,7 @@ jobs:
       LDAP_URI: ${{ vars.LDAP_URI }}
       LDAP_ADMIN_DN: ${{ vars.LDAP_ADMIN_DN }}
       LDAP_ADMIN_PW: ${{ vars.LDAP_ADMIN_PW }}
-      CA_CERT_CONTENT: ${{ vars.CA_CERT_CONTENT }}
+      CA_CERT_CONTENT: ${{vars.CA_CERT_CONTENT}}
 
     steps:
       - name: Checkout Repository
@@ -52,6 +52,7 @@ jobs:
               os_filter="amzn2-ami-hvm-*-x86_64-gp2"
               owners="137112412989" # Amazon Linux owner ID
               ;;
+            
           esac
 
           ami_id=$(aws ec2 describe-images \
@@ -94,9 +95,11 @@ jobs:
           # Validate the extracted IP
           if [[ -z "$instance_ip" ]]; then
             echo "Failed to extract a valid IP address from Terraform output"
+            echo "Raw output: $raw_output"
             exit 1
           fi
 
+          # Store the valid IP in the environment
           echo "INSTANCE_IP=$instance_ip" >> "$GITHUB_ENV"
           echo "Instance IP successfully captured: $instance_ip"
 
@@ -113,6 +116,11 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ env.INSTANCE_IP }} >> ~/.ssh/known_hosts
 
+      - name: Inspect SSH Key
+        run: |
+          echo "First few lines of ~/.ssh/id_rsa:"
+          head -n 5 ~/.ssh/id_rsa
+
       - name: Install pown.sh via SSH
         run: |
           SSH_USER="${{ matrix.os == 'debian' && 'admin' || 'ec2-user' }}"
@@ -120,32 +128,29 @@ jobs:
           retry_count=0
 
           while [ $retry_count -lt $max_retries ]; do
-            ssh -t -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << 'EOF'
-            set -e
-            export LDAP_BASE="${LDAP_BASE}"
-            export LDAP_URI="${LDAP_URI}"
-            export LDAP_ADMIN_DN="${LDAP_ADMIN_DN}"
-            export LDAP_ADMIN_PW="${LDAP_ADMIN_PW}"
-            export CA_CERT_CONTENT="${CA_CERT_CONTENT}"
+            if ssh -t -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << EOF
+          export LDAP_BASE="${{ env.LDAP_BASE }}"
+          export LDAP_URI="${{ env.LDAP_URI }}"
+          export LDAP_ADMIN_DN="${{ env.LDAP_ADMIN_DN }}"
+          export LDAP_ADMIN_PW="${{ env.LDAP_ADMIN_PW }}"
+          export CA_CERT_CONTENT= ${{ env.CA_CERT_CONTENT }} 
 
-            curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/refactor/github-action-matrix/pown.sh
-            chmod +x pown.sh
-            ./pown.sh
-            EOF
-
-            if [ $? -eq 0 ]; then
-              echo "pown.sh executed successfully."
-              break
-            else
-              retry_count=$((retry_count + 1))
-              if [ $retry_count -eq $max_retries ]; then
-                echo "Failed to execute pown.sh after $max_retries attempts."
-                exit 1
-              fi
-              echo "Retrying in 10 seconds..."
-              sleep 10
-            fi
-          done
+          curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/refactor/github-action-matrix/pown.sh
+          chmod +x pown.sh
+          ./pown.sh
+          EOF
+                then
+                  break
+                else
+                  retry_count=$((retry_count+1))
+                  if [ $retry_count -eq $max_retries ]; then
+                    echo "Failed to connect after $max_retries attempts"
+                    exit 1
+                  fi
+                  echo "Connection failed, retrying in 10 seconds..."
+                  sleep 10
+                fi
+              done
 
       - name: Test SSH with `ann`
         run: |
@@ -164,7 +169,7 @@ jobs:
                 echo "Failed to SSH as $SSH_USER after $max_retries attempts"
                 exit 1
               fi
-              echo "Connection failed, retrying..."
+              echo "Connection failed, retrying in 10 seconds..."
               sleep 10
             fi
           done
