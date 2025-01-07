@@ -134,7 +134,7 @@ EOL
 
        if [ "$PACKAGE_MANAGER" = "yum" ]; then
         # Handle Amazon Linux 2 separately
-        if [[ "$OS_VERSION" == "amazon-linux-2" ]]; then
+        if [[ "$OS_VERSION" == "amzn-2" ]]; then
             echo "Configuring with authconfig for Amazon Linux 2..."
             sudo authconfig \
                 --enableldap \
@@ -144,7 +144,10 @@ EOL
                 --enablemkhomedir \
                 --updateall
         elif [[ "$OS_VERSION" == "amazon-linux-2023" ]]; then
-            echo "Amazon Linux 2023 detected, skipping authselect and using default settings..."
+            echo "Amazon Linux 2023 detected"
+                sudo authselect select sssd --force
+                sudo authselect enable-feature with-mkhomedir
+            
         fi
     fi
 
