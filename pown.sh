@@ -143,10 +143,10 @@ EOL
                 --ldapbasedn="$LDAP_BASE" \
                 --enablemkhomedir \
                 --updateall
-        elif [[ "$OS_VERSION" == "amazon-linux-2023" ]]; then
+        elif [[ "$OS_VERSION" == "amzn-2023" ]]; then
             echo "Amazon Linux 2023 detected"
-                sudo authselect select sssd --force
-                sudo authselect enable-feature with-mkhomedir
+            sudo authselect select sssd --force
+            sudo authselect enable-feature with-mkhomedir
             
         fi
     fi
