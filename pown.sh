@@ -134,10 +134,10 @@ EOL
 setup_tls() {
     echo "Setting up TLS..."
     echo "test"
-    if [ -z "$CA_CERT_CONTENT" ]; then
-        echo "Error: CA_CERT_CONTENT environment variable is not set"
-        exit 1
-    fi
+    # if [ -z "$CA_CERT_CONTENT" ]; then
+    #     echo "Error: CA_CERT_CONTENT environment variable is not set"
+    #     exit 1
+    # fi
 
     echo "$CA_CERT_CONTENT" | sudo tee /etc/ssl/certs/ca-cert.pem > /dev/null
     sudo chmod 644 /etc/ssl/certs/ca-cert.pem
