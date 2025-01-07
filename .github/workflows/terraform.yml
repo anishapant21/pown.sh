@@ -120,26 +120,29 @@ jobs:
           retry_count=0
 
           while [ $retry_count -lt $max_retries ]; do
-            if ssh -t -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << EOF
-              export LDAP_BASE="${{ env.LDAP_BASE }}"
-              export LDAP_URI="${{ env.LDAP_URI }}"
-              export LDAP_ADMIN_DN="${{ env.LDAP_ADMIN_DN }}"
-              export LDAP_ADMIN_PW="${{ env.LDAP_ADMIN_PW }}"
-              export CA_CERT_CONTENT="${{ env.CA_CERT_CONTENT }}"
+            ssh -t -o ConnectTimeout=30 -i ~/.ssh/id_rsa $SSH_USER@${{ env.INSTANCE_IP }} << 'EOF'
+            set -e
+            export LDAP_BASE="${LDAP_BASE}"
+            export LDAP_URI="${LDAP_URI}"
+            export LDAP_ADMIN_DN="${LDAP_ADMIN_DN}"
+            export LDAP_ADMIN_PW="${LDAP_ADMIN_PW}"
+            export CA_CERT_CONTENT="${CA_CERT_CONTENT}"
 
-              curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/refactor/github-action-matrix/pown.sh
-              chmod +x pown.sh
-              ./pown.sh
-              EOF
-            then
+            curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/refactor/github-action-matrix/pown.sh
+            chmod +x pown.sh
+            ./pown.sh
+            EOF
+
+            if [ $? -eq 0 ]; then
+              echo "pown.sh executed successfully."
               break
             else
-              retry_count=$((retry_count+1))
+              retry_count=$((retry_count + 1))
               if [ $retry_count -eq $max_retries ]; then
-                echo "Failed to connect after $max_retries attempts"
+                echo "Failed to execute pown.sh after $max_retries attempts."
                 exit 1
               fi
-              echo "Connection failed, retrying..."
+              echo "Retrying in 10 seconds..."
               sleep 10
             fi
           done
