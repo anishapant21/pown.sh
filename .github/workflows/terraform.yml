@@ -16,7 +16,7 @@ jobs:
     environment: dev
     strategy:
       matrix:
-        os: ["debian", "amazon-linux"]
+        os: ["debian", "amazon-linux-2023", "amazon-linux-2"]
       fail-fast: false
     env:
       LDAP_BASE: ${{ vars.LDAP_BASE }}
@@ -44,8 +44,12 @@ jobs:
               os_filter="debian-12-amd64-*"
               owners="136693071363" # Debian owner ID
               ;;
-            amazon-linux)
+            amazon-linux-2023)
               os_filter="al2023-ami-*-x86_64"
+              owners="137112412989" # Amazon Linux owner ID
+              ;;
+            amazon-linux-2)
+              os_filter="amzn2-ami-hvm-*-x86_64-gp2""
               owners="137112412989" # Amazon Linux owner ID
               ;;
             
@@ -170,10 +174,10 @@ jobs:
             fi
           done
 
-      # - name: Destroy Terraform
-      #   if: always()
-      #   run: |
-      #     terraform destroy -auto-approve \
-      #       -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
-      #       -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
-      #       -var="ami_id=${{ env.ami_id }}"
+      - name: Destroy Terraform
+        if: always()
+        run: |
+          terraform destroy -auto-approve \
+            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+            -var="ami_id=${{ env.ami_id }}"

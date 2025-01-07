@@ -17,10 +17,22 @@ detect_package_manager() {
     fi
 }
 
+# Function to detect OS and version
+detect_os_version() {
+    if [ -f /etc/os-release ]; then
+        . /etc/os-release
+        echo "$ID-$VERSION_ID"
+    else
+        echo "unknown"
+    fi
+}
+
 echo "Starting script..."
 # Detect the package manager
 PACKAGE_MANAGER=$(detect_package_manager)
+OS_VERSION=$(detect_os_version)
 echo "Detected package manager: $PACKAGE_MANAGER"
+echo "Detected OS version: $OS_VERSION"
 
 # Common configurations
 setup_ssh() {
@@ -120,10 +132,20 @@ EOL
     sudo chmod 600 /etc/sssd/sssd.conf
 
 
-    if [ "$PACKAGE_MANAGER" = "yum" ]; then
-        # Add Red Hat specific authentication configuration
-        sudo authselect select sssd --force
-        sudo authselect enable-feature with-mkhomedir
+       if [ "$PACKAGE_MANAGER" = "yum" ]; then
+        # Handle Amazon Linux 2 separately
+        if [[ "$OS_VERSION" == "amazon-linux-2" ]]; then
+            echo "Configuring with authconfig for Amazon Linux 2..."
+            sudo authconfig \
+                --enableldap \
+                --enableldapauth \
+                --ldapserver=$LDAP_URI \
+                --ldapbasedn="$LDAP_BASE" \
+                --enablemkhomedir \
+                --updateall
+        elif [[ "$OS_VERSION" == "amazon-linux-2023" ]]; then
+            echo "Amazon Linux 2023 detected, skipping authselect and using default settings..."
+        fi
     fi
 
     sudo systemctl enable sssd
