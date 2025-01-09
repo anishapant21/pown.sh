@@ -3,6 +3,14 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+if [ -f ".env" ]; then
+    echo "Loading environment variables from .env file..."
+    export $(grep -v '^#' .env | xargs)
+else
+    echo "Error: .env file not found in the current directory."
+    exit 1
+fi
+
 # Configuration variables
 readonly SSSD_CONF="/etc/sssd/sssd.conf"
 readonly SSH_CONF="/etc/ssh/sshd_config"
@@ -11,7 +19,7 @@ readonly PAM_SYSTEM_AUTH="/etc/pam.d/system-auth"
 
 # Package lists for different package managers
 declare -A PACKAGES
-PACKAGES[apt]="ldap-utils openssh-client openssh-server sssd sssd-ldap sudo libnss-sss libpam-sss ca-certificates vim net-tools iputils-ping"
+PACKAGES[apt]="ldap-utils openssh-client openssh-server sssd sssd-ldap sssd-tools sudo libnss-sss libpam-sss ca-certificates vim net-tools iputils-ping oddjob oddjob-mkhomedir"
 PACKAGES[yum]="openssh-clients openssh-server sssd sssd-ldap sudo openldap-clients ca-certificates vim net-tools iputils authselect authconfig"
 PACKAGES[pacman]="openssh sssd openldap sudo ca-certificates vim net-tools iputils pam pambase"
 
@@ -42,7 +50,12 @@ detect_os_version() {
         echo "arch-linux"
     elif [ -f /etc/os-release ]; then
         . /etc/os-release
-        echo "$ID-$VERSION_ID"
+        # Add specific detection for Ubuntu
+        if [[ "$ID" == "ubuntu" ]]; then
+            echo "ubuntu-$VERSION_ID"
+        else
+            echo "$ID-$VERSION_ID"
+        fi
     else
         echo "unknown"
     fi
@@ -58,6 +71,11 @@ install_packages() {
             export DEBIAN_FRONTEND=noninteractive
             sudo apt-get update
             sudo apt-get install -y ${PACKAGES[apt]}
+              # Verify sssd-tools installation
+    if ! command -v sss_cache >/dev/null 2>&1; then
+        echo "sss_cache not found after installation. Attempting to install sssd-tools separately..."
+        sudo apt-get install -y sssd-tools
+    fi
             sudo rm -rf /var/lib/apt/lists/*
             unset DEBIAN_FRONTEND
             ;;
@@ -246,6 +264,28 @@ configure_amazon_linux_auth() {
     sudo authselect enable-feature with-mkhomedir
 }
 
+# Add Ubuntu-specific PAM configuration
+configure_ubuntu_pam() {
+    if [[ "$OS_VERSION" == ubuntu* ]]; then
+        echo "Configuring PAM for Ubuntu..."
+        
+        # Configure common-session for home directory creation
+        if ! grep -q "pam_mkhomedir.so" /etc/pam.d/common-session; then
+            echo "session required pam_mkhomedir.so skel=/etc/skel umask=0077" | \
+                sudo tee -a /etc/pam.d/common-session
+        fi
+        
+        # Configure common-auth for SSSD
+        sudo sed -i '/^auth.*pam_unix.so/i auth sufficient pam_sss.so use_first_pass' /etc/pam.d/common-auth
+        
+        # Configure common-account for SSSD
+        sudo sed -i '/^account.*pam_unix.so/i account [default=bad success=ok user_unknown=ignore] pam_sss.so' /etc/pam.d/common-account
+        
+        # Configure common-password for SSSD
+        sudo sed -i '/^password.*pam_unix.so/i password sufficient pam_sss.so use_authtok' /etc/pam.d/common-password
+    fi
+}
+
 # Function to set up TLS
 setup_tls() {
     log "Setting up TLS..."
@@ -293,6 +333,18 @@ main() {
     setup_ssh
     setup_ldap_client
     setup_sssd
+    if [[ "$OS_VERSION" == ubuntu* ]]; then
+    configure_ubuntu_pam
+    
+    # Ensure SSSD service is properly configured
+    sudo systemctl enable sssd
+    sudo systemctl restart sssd
+    
+    # Clear SSSD cache after configuration
+    sudo sss_cache -E
+    sudo rm -rf /var/lib/sss/db/*
+    sudo systemctl restart sssd
+fi
     setup_tls
     configure_pam_mkhomedir
     
