@@ -54,7 +54,7 @@ jobs:
               ;;
             centos-stream)
               os_filter="CentOS-Stream-9-*"
-              owners="125523088429" # CentOS Stream owner ID
+              owners="679593333241" # CentOS Stream owner ID
               ;;
 
             
@@ -197,10 +197,10 @@ jobs:
             fi
           done
 
-      - name: Destroy Terraform
-        if: always()
-        run: |
-          terraform destroy -auto-approve \
-            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
-            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
-            -var="ami_id=${{ env.ami_id }}"
+      # - name: Destroy Terraform
+      #   if: always()
+      #   run: |
+      #     terraform destroy -auto-approve \
+      #       -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+      #       -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+      #       -var="ami_id=${{ env.ami_id }}"
