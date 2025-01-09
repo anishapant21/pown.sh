@@ -16,7 +16,7 @@ jobs:
     environment: dev
     strategy:
       matrix:
-        os: ["debian", "amazon-linux", "arch-linux"]
+        os: ["debian", "amazon-linux", "arch-linux", "centos-stream"]
       fail-fast: false
     env:
       LDAP_BASE: ${{ vars.LDAP_BASE }}
@@ -52,6 +52,11 @@ jobs:
               os_filter="arch-linux-std-hvm-2025.01.01.x86_64-ebs"
               owners="647457786197" # Arch Linux owner ID
               ;;
+            centos-stream)
+              os_filter="CentOS-Stream-9-*"
+              owners="679593333241" # CentOS Stream owner ID
+              ;;
+
             
           esac
 
@@ -192,10 +197,10 @@ jobs:
             fi
           done
 
-      - name: Destroy Terraform
-        if: always()
-        run: |
-          terraform destroy -auto-approve \
-            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
-            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
-            -var="ami_id=${{ env.ami_id }}"
+      # - name: Destroy Terraform
+      #   if: always()
+      #   run: |
+      #     terraform destroy -auto-approve \
+      #       -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+      #       -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+      #       -var="ami_id=${{ env.ami_id }}"
