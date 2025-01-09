@@ -16,7 +16,7 @@ jobs:
     environment: dev
     strategy:
       matrix:
-        os: ["debian", "amazon-linux", "arch-linux"]
+        os: ["debian", "amazon-linux", "arch-linux", "ubuntu"]
       fail-fast: false
     env:
       LDAP_BASE: ${{ vars.LDAP_BASE }}
@@ -51,6 +51,10 @@ jobs:
             arch-linux)
               os_filter="arch-linux-std-hvm-2025.01.01.x86_64-ebs"
               owners="647457786197" # Arch Linux owner ID
+              ;;
+            ubuntu)
+              os_filter="ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*"
+              owners="099720109477" # Ubuntu owner ID
               ;;
             
           esac
