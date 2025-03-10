@@ -16,7 +16,7 @@ jobs:
     environment: dev
     strategy:
       matrix:
-        os: ["debian", "amazon-linux", "arch-linux", "ubuntu"]
+        os: ["debian"]
       fail-fast: false
     env:
       LDAP_BASE: ${{ vars.LDAP_BASE }}
@@ -199,10 +199,10 @@ jobs:
             fi
           done
 
-      - name: Destroy Terraform
-        if: always()
-        run: |
-          terraform destroy -auto-approve \
-            -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
-            -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
-            -var="ami_id=${{ env.ami_id }}"
+      # - name: Destroy Terraform
+      #   if: always()
+      #   run: |
+      #     terraform destroy -auto-approve \
+      #       -var="access_key=${{ secrets.AWS_ACCESS_KEY }}" \
+      #       -var="secret_key=${{ secrets.AWS_SECRET_KEY }}" \
+      #       -var="ami_id=${{ env.ami_id }}"
