@@ -160,7 +160,7 @@ jobs:
           export LDAP_ADMIN_PW="${{ env.LDAP_ADMIN_PW }}"
           export CA_CERT_CONTENT= ${{ env.CA_CERT_CONTENT }} 
 
-          curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/tests/ldap-server/pown.sh
+          curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/debian/ldap-server/pown.sh
           chmod +x pown.sh
           ./pown.sh
           EOF
