@@ -19,9 +19,9 @@ readonly PAM_SYSTEM_AUTH="/etc/pam.d/system-auth"
 
 # Package lists for different package managers
 declare -A PACKAGES
-PACKAGES[apt]="ldap-utils openssh-client openssh-server sssd sssd-ldap sudo libnss-sss libpam-sss ca-certificates vim net-tools iputils-ping libpam-modules"
+PACKAGES[apt]="ldap-utils openssh-client openssh-server sssd sssd-ldap sudo libnss-sss libpam-sss ca-certificates vim net-tools iputils-ping"
 PACKAGES[yum]="openssh-clients openssh-server sssd sssd-ldap sudo openldap-clients ca-certificates vim net-tools iputils authselect authconfig"
-PACKAGES[pacman]="openssh sssd openldap sudo ca-certificates vim net-tools iputils pam pambase cronie"
+PACKAGES[pacman]="openssh sssd openldap sudo ca-certificates vim net-tools iputils pam pambase"
 
 # Function to log messages
 log() {
@@ -270,29 +270,12 @@ configure_amazon_linux_auth() {
     sudo authselect enable-feature with-mkhomedir
 }
 
-# # Function to set up TLS
-# setup_tls() {
-#     log "Setting up TLS..."
-#     echo "$CA_CERT_CONTENT" | sudo tee /etc/ssl/certs/ca-cert.pem > /dev/null
-#     sudo chmod 644 /etc/ssl/certs/ca-cert.pem
-#     sudo chown root:root /etc/ssl/certs/ca-cert.pem
-    
-#     update_ca_certificates
-# }
-
+# Function to set up TLS
 setup_tls() {
     log "Setting up TLS..."
-    
-    # Create cert directory if missing
-    sudo mkdir -p /etc/ssl/certs
-    
-    # Write certificate with proper escaping
     echo "$CA_CERT_CONTENT" | sudo tee /etc/ssl/certs/ca-cert.pem > /dev/null
-    
-    # Amazon Linux specific trust store
-    if [ "$PACKAGE_MANAGER" = "yum" ]; then
-        sudo cp /etc/ssl/certs/ca-cert.pem /etc/pki/ca-trust/source/anchors/
-    fi
+    sudo chmod 644 /etc/ssl/certs/ca-cert.pem
+    sudo chown root:root /etc/ssl/certs/ca-cert.pem
     
     update_ca_certificates
 }
@@ -306,31 +289,15 @@ update_ca_certificates() {
     esac
 }
 
-# configure_pam_mkhomedir() {
-#     echo "Configuring PAM for SSHD to enable pam_mkhomedir..."
-#     PAM_FILE="/etc/pam.d/sshd"
-
-#     if ! sudo grep -q "pam_mkhomedir.so" "$PAM_FILE"; then
-#         echo "Adding pam_mkhomedir.so configuration to $PAM_FILE..."
-#         echo "session required pam_mkhomedir.so skel=/etc/skel umask=0077" | sudo tee -a "$PAM_FILE"
-#     else
-#         echo "pam_mkhomedir.so is already configured in $PAM_FILE. Skipping."
-#     fi
-# }
-
 configure_pam_mkhomedir() {
-    # Applies to all PAM configurations
-    find /etc/pam.d/ -type f | while read pam_file; do
-        if ! grep -q "pam_mkhomedir.so" "$pam_file"; then
-            echo "session     required      pam_mkhomedir.so skel=/etc/skel umask=0077" | \
-                sudo tee -a "$pam_file" > /dev/null
-        fi
-    done
-    
-    # Special case for Debian/Ubuntu
-    if [ -f "/etc/pam.d/common-session" ]; then
-        echo "session required pam_mkhomedir.so skel=/etc/skel umask=0077" | \
-            sudo tee -a /etc/pam.d/common-session > /dev/null
+    echo "Configuring PAM for SSHD to enable pam_mkhomedir..."
+    PAM_FILE="/etc/pam.d/sshd"
+
+    if ! sudo grep -q "pam_mkhomedir.so" "$PAM_FILE"; then
+        echo "Adding pam_mkhomedir.so configuration to $PAM_FILE..."
+        echo "session required pam_mkhomedir.so skel=/etc/skel umask=0077" | sudo tee -a "$PAM_FILE"
+    else
+        echo "pam_mkhomedir.so is already configured in $PAM_FILE. Skipping."
     fi
 }
 
