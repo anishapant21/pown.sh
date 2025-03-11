@@ -34,4 +34,4 @@ Run the test script to verify infrastructure deployment:
 ./test.sh
 ```
 
-The script will create test instances on AWS, verify their accessibility, and clean up automatically.
+The script will create test instances on AWS , verify their accessibility, and clean up automatically.
