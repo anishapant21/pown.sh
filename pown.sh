@@ -131,7 +131,6 @@ configure_ssh_authentication() {
     done
 }
 
-
 generate_ssh_keys() {
     log "Generating SSH keys if not present..."
     local key_types=("rsa" "ecdsa" "ed25519")
@@ -150,11 +149,20 @@ setup_ldap_client() {
     log "Setting up LDAP client..."
     sudo mkdir -p /etc/ldap
     
-    sudo tee /etc/ldap/ldap.conf <<EOL
+    # Different config based on OS
+    if [[ "$PACKAGE_MANAGER" == "yum" && "$OS_VERSION" == "amzn-2023" ]]; then
+        sudo tee /etc/openldap/ldap.conf <<EOL
+BASE    $LDAP_BASE
+URI     $LDAP_URI
+TLS_REQCERT never
+EOL
+    else
+        sudo tee /etc/ldap/ldap.conf <<EOL
 BASE    $LDAP_BASE
 URI     $LDAP_URI
 TLS_REQCERT allow
 EOL
+    fi
 }
 
 # Function to set up SSSD
@@ -174,6 +182,12 @@ setup_sssd() {
 }
 
 create_sssd_config() {
+    # Determine CA cert path based on OS
+    local ca_cert_path="/etc/ssl/certs/ca-cert.pem"
+    if [[ "$PACKAGE_MANAGER" == "yum" && "$OS_VERSION" == "amzn-2023" ]]; then
+        ca_cert_path="/etc/pki/ca-trust/source/anchors/ca-cert.pem"
+    fi
+    
     sudo tee "$SSSD_CONF" <<EOL
 [sssd]
 domains = LDAP
@@ -195,8 +209,8 @@ ldap_network_timeout = 30
 ldap_opt_timeout = 30
 ldap_timeout = 30
 
-ldap_tls_cacert = /etc/ssl/certs/ca-cert.pem
-ldap_tls_reqcert = allow
+ldap_tls_cacert = ${ca_cert_path}
+ldap_tls_reqcert = never
 ldap_id_use_start_tls = false
 ldap_schema = rfc2307
 
@@ -209,6 +223,7 @@ ldap_user_home_directory = homeDirectory
 ldap_user_shell = loginShell
 ldap_user_gecos = gecos
 ldap_user_shadow_last_change = shadowLastChange
+ldap_referrals = false
 
 [pam]
 pam_response_filter = ENV
@@ -264,18 +279,40 @@ session  include  system-auth
 EOL
 }
 
-
 configure_amazon_linux_auth() {
+    log "Configuring Amazon Linux authentication..."
     sudo authselect select sssd --force
     sudo authselect enable-feature with-mkhomedir
+    
+    # Ensure home directory creation works
+    sudo systemctl restart oddjobd
+    sudo systemctl enable oddjobd
 }
 
 # Function to set up TLS
 setup_tls() {
     log "Setting up TLS..."
+    
+    # Write cert to different locations based on OS
     echo "$CA_CERT_CONTENT" | sudo tee /etc/ssl/certs/ca-cert.pem > /dev/null
     sudo chmod 644 /etc/ssl/certs/ca-cert.pem
     sudo chown root:root /etc/ssl/certs/ca-cert.pem
+    
+    # Special handling for Amazon Linux
+    if [[ "$PACKAGE_MANAGER" == "yum" && "$OS_VERSION" == "amzn-2023" ]]; then
+        # Create Amazon Linux specific cert directories
+        sudo mkdir -p /etc/pki/ca-trust/source/anchors/
+        echo "$CA_CERT_CONTENT" | sudo tee /etc/pki/ca-trust/source/anchors/ca-cert.pem > /dev/null
+        sudo chmod 644 /etc/pki/ca-trust/source/anchors/ca-cert.pem
+        
+        # Create OpenLDAP cert directory
+        sudo mkdir -p /etc/openldap/certs/
+        echo "$CA_CERT_CONTENT" | sudo tee /etc/openldap/certs/ca-cert.pem > /dev/null
+        sudo chmod 644 /etc/openldap/certs/ca-cert.pem
+        
+        # Also create a symbolic link to ensure cert is found
+        sudo ln -sf /etc/pki/ca-trust/source/anchors/ca-cert.pem /etc/pki/tls/certs/ca-cert.pem
+    fi
     
     update_ca_certificates
 }
@@ -283,9 +320,25 @@ setup_tls() {
 update_ca_certificates() {
     log "Updating CA certificates..."
     case $PACKAGE_MANAGER in
-        apt)    sudo update-ca-certificates ;;
-        yum)    sudo update-ca-trust extract ;;
-        pacman) sudo update-ca-trust ;;
+        apt)    
+            sudo update-ca-certificates 
+            ;;
+        yum)    
+            sudo update-ca-trust extract
+            if [[ "$OS_VERSION" == "amzn-2023" ]]; then
+                # Amazon Linux specific - rehash OpenLDAP certs
+                if command -v cacertdir_rehash >/dev/null 2>&1; then
+                    sudo cacertdir_rehash /etc/openldap/certs/
+                fi
+                # Try alternatives for cert rehashing
+                if command -v c_rehash >/dev/null 2>&1; then
+                    sudo c_rehash /etc/openldap/certs/
+                fi
+            fi
+            ;;
+        pacman) 
+            sudo update-ca-trust 
+            ;;
     esac
 }
 
@@ -298,6 +351,38 @@ configure_pam_mkhomedir() {
         echo "session required pam_mkhomedir.so skel=/etc/skel umask=0077" | sudo tee -a "$PAM_FILE"
     else
         echo "pam_mkhomedir.so is already configured in $PAM_FILE. Skipping."
+    fi
+}
+
+# Test LDAP connection
+test_ldap_connection() {
+    log "Testing LDAP connection..."
+    
+    if [[ "$PACKAGE_MANAGER" == "yum" && "$OS_VERSION" == "amzn-2023" ]]; then
+        # Test with specified cert path for Amazon Linux
+        ldapsearch -H "$LDAP_URI" -x -b "$LDAP_BASE" -Z -o ldap.tls_cacert=/etc/pki/ca-trust/source/anchors/ca-cert.pem -d 1 || true
+    else
+        # Standard test for other distros
+        ldapsearch -H "$LDAP_URI" -x -b "$LDAP_BASE" -d 1 || true
+    fi
+}
+
+fix_ldap_permissions() {
+    if [[ "$PACKAGE_MANAGER" == "yum" && "$OS_VERSION" == "amzn-2023" ]]; then
+        log "Fixing LDAP permissions for Amazon Linux..."
+        sudo chmod 600 /etc/openldap/certs/ca-cert.pem
+        sudo chown root:root /etc/openldap/certs/ca-cert.pem
+        sudo chmod 644 /etc/openldap/ldap.conf
+        sudo chown root:root /etc/openldap/ldap.conf
+        
+        # Fix SSSD file permissions
+        sudo chmod 600 "$SSSD_CONF"
+        sudo chown root:root "$SSSD_CONF"
+        
+        # Clear SSSD cache
+        sudo sss_cache -E
+        sudo rm -rf /var/lib/sss/db/*
+        sudo systemctl restart sssd
     fi
 }
 
@@ -316,10 +401,22 @@ main() {
     
     # Set up services
     setup_ssh
+    setup_tls # Setup TLS before LDAP to ensure certs are available
     setup_ldap_client
     setup_sssd
-    setup_tls
     configure_pam_mkhomedir
+    
+    # Additional setup for Amazon Linux
+    if [[ "$PACKAGE_MANAGER" == "yum" && "$OS_VERSION" == "amzn-2023" ]]; then
+        fix_ldap_permissions
+        
+        # Restart services in proper order for Amazon Linux
+        sudo systemctl restart sssd
+        sudo systemctl restart sshd
+        
+        # Test LDAP connection
+        test_ldap_connection
+    fi
     
     # Additional setup for Arch Linux
     if [ "$PACKAGE_MANAGER" = "pacman" ]; then
