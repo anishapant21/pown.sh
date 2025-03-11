@@ -3,6 +3,14 @@
 # Exit immediately if a command exits with a non-zero status
 set -e
 
+# Load environment variables from .env file
+if [ -f .env ]; then
+    export $(grep -v '^#' .env | xargs)
+    echo "Successfully imported environment variables from .env"
+else
+    echo "Warning: .env file not found, skipping environment variable import"
+fi
+
 # Configuration variables
 readonly SSSD_CONF="/etc/sssd/sssd.conf"
 readonly SSH_CONF="/etc/ssh/sshd_config"
@@ -169,37 +177,47 @@ setup_sssd() {
 create_sssd_config() {
     sudo tee "$SSSD_CONF" <<EOL
 [sssd]
-config_file_version = 2
-services = nss, pam, ssh
 domains = LDAP
+config_file_version = 2
+services = nss, pam
 
 [domain/LDAP]
 debug_level = 9
-access_provider = ldap
 id_provider = ldap
 auth_provider = ldap
-chpass_provider = ldap
-ldap_uri = $LDAP_URI
-ldap_search_base = $LDAP_BASE
-ldap_default_bind_dn = $LDAP_ADMIN_DN
-ldap_default_authtok = $LDAP_ADMIN_PW
+ldap_uri = ldaps://6.tcp.ngrok.io:19025
+ldap_enforce_password_policy = false
+ldap_search_base = dc=mieweb,dc=com
+
+ldap_connection_expire_timeout = 30
+ldap_connection_expire_offset = 0
+ldap_account_expire_policy = ad
+ldap_network_timeout = 30
+ldap_opt_timeout = 30
+ldap_timeout = 30
+
+ldap_tls_cacert = /certificates/ca-cert.pem
 ldap_tls_reqcert = never
-cache_credentials = true
-enumerate = true
 ldap_id_use_start_tls = false
-ldap_tls_cacert = $CA_CERT
+ldap_schema = rfc2307
+
+cache_credentials = True
+enumerate = True
+
 ldap_user_object_class = posixAccount
-ldap_group_object_class = posixGroup
+ldap_user_name = uid
 ldap_user_home_directory = homeDirectory
 ldap_user_shell = loginShell
-ldap_user_uid = uid
-ldap_user_name = uid
-ignore_missing_attributes = True
-ldap_access_order = filter
-ldap_access_filter = (objectClass=posixAccount)
-ldap_user_ssh_public_key = sshPublicKey
-ldap_auth_disable_tls_never_use_in_production = true
-ldap_group_name = cn
+ldap_user_gecos = gecos
+ldap_user_shadow_last_change = shadowLastChange
+
+[pam]
+pam_response_filter = ENV
+pam_verbosity = 3
+pam_id_timeout = 30
+pam_pwd_response_prompt = Password: 
+pam_pwd_response_timeout = 30
+
 EOL
     sudo chmod 600 "$SSSD_CONF"
 }
