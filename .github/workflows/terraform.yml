@@ -158,7 +158,7 @@ jobs:
           export LDAP_URI="${{ env.LDAP_URI }}"
           export LDAP_ADMIN_DN="${{ env.LDAP_ADMIN_DN }}"
           export LDAP_ADMIN_PW="${{ env.LDAP_ADMIN_PW }}"
-          export CA_CERT_CONTENT="${{ env.CA_CERT_CONTENT }}"
+          export CA_CERT_CONTENT= ${{ env.CA_CERT_CONTENT }} 
 
           curl -O https://raw.githubusercontent.com/anishapant21/pown.sh/debian/ldap-server/pown.sh
           chmod +x pown.sh
