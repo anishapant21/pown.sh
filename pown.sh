@@ -184,7 +184,7 @@ services = nss, pam
 debug_level = 9
 id_provider = ldap
 auth_provider = ldap
-ldap_uri = ldaps://6.tcp.ngrok.io:19025
+ldap_uri = $LDAP_URI
 ldap_enforce_password_policy = false
 ldap_search_base = dc=mieweb,dc=com
 
