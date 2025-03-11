@@ -153,7 +153,6 @@ setup_ldap_client() {
     sudo tee /etc/ldap/ldap.conf <<EOL
 BASE    $LDAP_BASE
 URI     $LDAP_URI
-BINDDN  $LDAP_ADMIN_DN
 TLS_REQCERT allow
 EOL
 }
