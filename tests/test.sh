@@ -92,7 +92,7 @@ max_retries=3
 retry_count=0
 
 while [ $retry_count -lt $max_retries ]; do
-    if ssh -i ~/Downloads/test.pem -o StrictHostKeyChecking=no $SSH_USER@$instance_ip << EOF
+    if ssh -i ~/Downloads/mietest.pem -o StrictHostKeyChecking=no $SSH_USER@$instance_ip << EOF
 export LDAP_BASE="$LDAP_BASE"
 export LDAP_URI="$LDAP_URI"
 export LDAP_ADMIN_DN="$LDAP_ADMIN_DN"
