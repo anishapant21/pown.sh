@@ -196,8 +196,8 @@ ldap_network_timeout = 30
 ldap_opt_timeout = 30
 ldap_timeout = 30
 
-ldap_tls_cacert = /certificates/ca-cert.pem
-ldap_tls_reqcert = never
+ldap_tls_cacert = /etc/ssl/certs/ca-cert.pem
+ldap_tls_reqcert = allow
 ldap_id_use_start_tls = false
 ldap_schema = rfc2307
 
@@ -276,6 +276,7 @@ setup_tls() {
     log "Setting up TLS..."
     echo "$CA_CERT_CONTENT" | sudo tee /etc/ssl/certs/ca-cert.pem > /dev/null
     sudo chmod 644 /etc/ssl/certs/ca-cert.pem
+    sudo chown root:root /etc/ssl/certs/ca-cert.pem
     
     update_ca_certificates
 }
