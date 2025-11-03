@@ -104,8 +104,24 @@ setup_ssh() {
     local service_name="ssh"
     [[ "$PACKAGE_MANAGER" =~ ^(yum|pacman|dnf)$ ]] && service_name="sshd"
     
-    sudo systemctl enable "$service_name"
-    sudo systemctl restart "$service_name"
+
+    # Enable or start SSH depending on systemd availability
+    if command -v systemctl >/dev/null 2>&1 && systemctl list-units >/dev/null 2>&1; then
+        log "Enabling and starting SSH via systemd..."
+        exec_log sudo systemctl enable ssh
+        exec_log sudo systemctl restart ssh
+    else
+        log "Systemd not available — starting SSH manually..."
+        sudo mkdir -p /var/run/sshd
+        if ! pgrep -x sshd >/dev/null 2>&1; then
+            log "Executing: sudo /usr/sbin/sshd"
+            sudo /usr/sbin/sshd
+            log "Started SSHD manually"
+        else
+            log "SSHD already running"
+        fi
+    fi
+
 }
 
 configure_ssh_authentication() {
@@ -153,7 +169,8 @@ setup_ldap_client() {
 BASE    $LDAP_BASE
 URI     $LDAP_URI
 BINDDN  $LDAP_ADMIN_DN
-TLS_REQCERT never
+TLS_CACERT /etc/ssl/certs/ldap-ca-cert.pem
+TLS_REQCERT allow
 EOL
 }
 
@@ -169,8 +186,21 @@ setup_sssd() {
         configure_sssd_authselect
     fi
     
-    sudo systemctl enable sssd
-    sudo systemctl restart sssd
+    # Enable and start SSSD (systemd or manual)
+    if command -v systemctl >/dev/null 2>&1 && systemctl list-units >/dev/null 2>&1; then
+        log "Enabling and starting SSSD via systemd..."
+        exec_log sudo systemctl enable sssd
+        exec_log sudo systemctl restart sssd
+    else
+        log "Systemd not available — starting SSSD manually..."
+        if ! pgrep -x sssd >/dev/null 2>&1; then
+            exec_log sudo /usr/sbin/sssd -i &
+            log "Started SSSD in the background"
+        else
+            log "SSSD already running"
+        fi
+    fi
+
 }
 
 create_sssd_config() {
@@ -195,7 +225,7 @@ ldap_network_timeout = 30
 ldap_opt_timeout = 30
 ldap_timeout = 30
 
-ldap_tls_cacert = ${CA_CERT}
+ldap_tls_cacert = /etc/ssl/certs/ldap-ca-cert.pem
 ldap_tls_reqcert = never
 ldap_id_use_start_tls = false
 ldap_schema = rfc2307
@@ -270,17 +300,34 @@ configure_sssd_authselect() {
     sudo authselect select sssd --force
 }
 
-# Function to set up TLS
 setup_tls() {
     log "Setting up TLS..."
+    sudo mkdir -p /etc/ssl/certs
 
-    sudo mkdir -p /certificates
+    # Define where to store the CA cert
+    local CA_CERT_PATH="/etc/ssl/certs/ldap-ca-cert.pem"
 
-    echo "$CA_CERT_CONTENT" | sudo tee /certificates/ca-cert.pem > /dev/null
-    sudo chmod 644 /certificates/ca-cert.pem
+    # Only proceed if this is LDAPS
+    if [[ "$LDAP_URI" =~ ^ldaps:// ]]; then
+        log "Extracting CA certificate from $LDAP_URI ..."
+        local HOST_PORT=$(echo "$LDAP_URI" | sed -E 's|ldaps://||')
+        # Extract cert from server
+        echo -n | openssl s_client -connect "$HOST_PORT" -showcerts 2>/dev/null \
+            | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' \
+            | sudo tee "$CA_CERT_PATH" > /dev/null
 
-    update_ca_certificates
+        if [ -s "$CA_CERT_PATH" ]; then
+            log "Saved CA certificate to $CA_CERT_PATH"
+            sudo chmod 644 "$CA_CERT_PATH"
+            sudo update-ca-certificates
+        else
+            log "Warning: Could not extract CA certificate from $LDAP_URI"
+        fi
+    else
+        log "Non-LDAPS connection — skipping TLS extraction."
+    fi
 }
+
 
 
 update_ca_certificates() {
