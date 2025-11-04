@@ -830,7 +830,12 @@ setup_ssh() {
             local service_name="ssh"
             [[ "$PACKAGE_MANAGER" =~ ^(yum|pacman|dnf)$ ]] && service_name="sshd"
             
-            exec_log sudo systemctl restart "$service_name"
+            if command -v service >/dev/null 2>&1; then
+                exec_log sudo service "$service_name" restart
+            else
+                exec_log sudo /usr/sbin/sshd
+            fi
+
         fi
     else
         log "SSH service is disabled - configuration applied but service not restarted."
@@ -913,7 +918,14 @@ setup_sssd() {
     fi
     
     exec_log sudo systemctl enable sssd
-    exec_log sudo systemctl restart sssd
+    if pidof systemd >/dev/null 2>&1; then
+        exec_log sudo systemctl restart sssd
+    else
+        log "systemd not detected — starting SSSD manually..."
+        sudo pkill sssd 2>/dev/null || true
+        sudo sssd -D &
+        sleep 2
+    fi
 }
 
 create_sssd_config() {
