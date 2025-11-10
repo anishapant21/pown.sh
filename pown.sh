@@ -1080,22 +1080,28 @@ setup_tls() {
 update_ca_certificates() {
     log "Updating CA certificates..."
     case $PACKAGE_MANAGER in
-        apt)    
+        apt)
             # For Debian/Ubuntu, copy to the ca-certificates directory and update
-            exec_log sudo cp "$CA_CERT" /usr/local/share/ca-certificates/ldap-ca-cert.crt
-            exec_log sudo update-ca-certificates
+            local src="$CA_CERT"
+            local dst="/usr/local/share/ca-certificates/ldap-ca-cert.crt"
+
+            # Only copy if source and destination are different
+            if [ "$(realpath "$src")" != "$(realpath "$dst")" ]; then
+                exec_log sudo cp -f "$src" "$dst"
+            else
+                log "Skipping copy — source and destination are the same file"
+            fi
+
+            exec_log sudo update-ca-certificates --fresh
             ;;
-        yum|dnf)    
-            # For RHEL/CentOS/Fedora, copy to anchors and update trust
+        yum|dnf)
             exec_log sudo cp "$CA_CERT" /etc/pki/ca-trust/source/anchors/ldap-ca-cert.pem
             exec_log sudo update-ca-trust extract
             ;;
-        pacman) 
-            # For Arch Linux, the file is already in the right place
+        pacman)
             exec_log sudo update-ca-trust
             ;;
         macos-native)
-            # For macOS, add to system keychain
             exec_log sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keychain "$CA_CERT"
             ;;
     esac
